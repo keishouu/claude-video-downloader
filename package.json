@@ -1,0 +1,13 @@
+{
+  "name": "video-downloader-chrome-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome/Playwright render server for the static video exporter UI.",
+  "main": "export-server.js",
+  "scripts": {
+    "start": "node export-server.js"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
+}
