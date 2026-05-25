@@ -5,6 +5,8 @@ const PORT = Number(process.env.PORT || 5175);
 const HOST = process.env.HOST || '0.0.0.0';
 const CHROME = process.env.CHROME_PATH || '';
 const EXPORT_TOKEN = process.env.EXPORT_TOKEN || '';
+const FRAME_WAIT_MS = Number(process.env.FRAME_WAIT_MS || 5);
+const FRAME_FORMAT = process.env.FRAME_FORMAT || 'jpeg';
 
 function send(res, status, body, headers = {}) {
   res.writeHead(status, {
@@ -102,12 +104,12 @@ async function createEncoder(browser, width, height, fps, bitrate) {
   return page;
 }
 
-async function encodeFrame(encoderPage, framePng, flush = false) {
-  const item = framePng.toString('base64');
-  await encoderPage.evaluate(async ({ item, flush }) => {
+async function encodeFrame(encoderPage, frameImage, mimeType, flush = false) {
+  const item = frameImage.toString('base64');
+  await encoderPage.evaluate(async ({ item, mimeType, flush }) => {
     const state = window.__vdEncoder;
     const bytes = Uint8Array.from(atob(item), c => c.charCodeAt(0));
-    const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const bmp = await createImageBitmap(new Blob([bytes], { type: mimeType }));
     state.ctx.clearRect(0, 0, state.width, state.height);
     state.ctx.drawImage(bmp, 0, 0, state.width, state.height);
     bmp.close();
@@ -119,7 +121,7 @@ async function encodeFrame(encoderPage, framePng, flush = false) {
     frame.close();
     state.frameIndex++;
     if (flush || state.encoder.encodeQueueSize > 12) await state.encoder.flush();
-  }, { item, flush });
+  }, { item, mimeType, flush });
 }
 
 async function finalizeEncoder(encoderPage) {
@@ -150,12 +152,22 @@ async function renderVideo({ html, width, height, duration, fps, bitrate }) {
     await waitForDesign(page);
     await hideChrome(page);
     const total = Math.ceil(duration * fps);
+    const screenshotType = FRAME_FORMAT === 'png' ? 'png' : 'jpeg';
+    const mimeType = screenshotType === 'png' ? 'image/png' : 'image/jpeg';
+    console.log(`Rendering ${total} frames at ${width}x${height}, ${fps}fps, ${screenshotType}`);
     const encoderPage = await createEncoder(browser, width, height, fps, bitrate);
     for (let i = 0; i < total; i++) {
       await page.evaluate(t => window.__setTime__(t), i / fps);
-      await page.waitForTimeout(35);
-      const frame = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width, height } });
-      await encodeFrame(encoderPage, frame, i % Math.max(1, Math.round(fps)) === 0);
+      if (FRAME_WAIT_MS > 0) await page.waitForTimeout(FRAME_WAIT_MS);
+      const frame = await page.screenshot({
+        type: screenshotType,
+        quality: screenshotType === 'jpeg' ? 85 : undefined,
+        clip: { x: 0, y: 0, width, height }
+      });
+      await encodeFrame(encoderPage, frame, mimeType, i % Math.max(1, Math.round(fps)) === 0);
+      if ((i + 1) % Math.max(1, Math.round(fps * 5)) === 0 || i + 1 === total) {
+        console.log(`Rendered ${i + 1}/${total} frames`);
+      }
     }
     await page.close();
     return await finalizeEncoder(encoderPage);
