@@ -41,11 +41,11 @@ https://YOUR_USER.github.io/YOUR_REPO/?exportServer=https%3A%2F%2FYOUR-RENDERER.
 
 ## Render Deploy
 
-This repo includes `render.yaml`. On Render, create a Blueprint from the repo, or create a Web Service manually with:
+This repo includes `render.yaml` and a `Dockerfile`. On Render, create a Blueprint from the repo, or create a Web Service manually with:
 
 ```text
-Build command: npm install && npx playwright install --with-deps chromium
-Start command: npm start
+Runtime: Docker
+Dockerfile Path: ./Dockerfile
 ```
 
 Set `EXPORT_TOKEN` in the Render environment if you want to require the shared token shown above.
